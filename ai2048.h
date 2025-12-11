@@ -2,6 +2,7 @@
 #define AI2048_H
 
 #include <vector>
+#include <string>
 #include "game2048.h"
 
 enum class Direction {
@@ -31,7 +32,8 @@ double evaluateFitness(const Weights& w,
                        int games,
                        int maxMoves,
                        double& outBestScore,
-                       int& outBestMoves);
+                       int& outBestMoves,
+                       int threadCount = 0);
 
 struct Individual {
     Weights w;
@@ -47,7 +49,18 @@ void mutateWeights(Weights& w, double rate = 0.1);
 Weights crossover(const Weights& a, const Weights& b);
 
 Population createInitialPopulation(int size);
-void evaluatePopulation(Population& pop);
+void evaluatePopulation(Population& pop,
+                        int games = 10,
+                        int maxMoves = 1000,
+                        int threadCount = 0);
+
+bool savePopulation(const Population& pop,
+                    int generation,
+                    const std::string& filePath);
+
+Population loadPopulation(const std::string& filePath,
+                          int expectedSize,
+                          int& outGeneration);
 
 Population evolve(const Population& pop,
                   double eliteRate = 0.1,

@@ -2,6 +2,11 @@
 #include <cmath>
 #include <algorithm>
 #include <random>
+#include <future>
+#include <mutex>
+#include <fstream>
+#include <sstream>
+#include <thread>
 
 static int countEmpty(const Game2048& g) {
     int n = g.size();
@@ -186,25 +191,65 @@ double playOneGame(const Weights& w, int maxMoves, int* outMoves)
 }
 
 double evaluateFitness(const Weights& w, int games, int maxMoves,
-                       double& outBestScore, int& outBestMoves)
+                       double& outBestScore, int& outBestMoves,
+                       int threadCount)
 {
     double total = 0.0;
     outBestScore = 0.0;
     outBestMoves = 0;
 
-    for (int i = 0; i < games; ++i) {
-        int moves = 0;
-        double score = playOneGame(w, maxMoves, &moves);
+    const int workers = (threadCount > 0)
+        ? threadCount
+        : std::max(1u, std::thread::hardware_concurrency());
 
-        total += score;
+    const int tasks = std::max(1, std::min(games, workers));
+    const int baseCount = games / tasks;
+    const int remainder = games % tasks;
 
-        if (score > outBestScore) {
-            outBestScore = score;
-            outBestMoves = moves;
-        }
+    std::mutex aggMutex;
+    std::vector<std::future<void>> futures;
+    futures.reserve(tasks);
+
+    int start = 0;
+    for (int i = 0; i < tasks; ++i) {
+        int count = baseCount + (i < remainder ? 1 : 0);
+        int taskStart = start;
+        int taskEnd   = start + count;
+        start = taskEnd;
+
+        futures.emplace_back(std::async(std::launch::async,
+            [&, taskStart, taskEnd]() {
+                double localTotal = 0.0;
+                double localBestScore = 0.0;
+                int    localBestMoves = 0;
+
+                for (int idx = taskStart; idx < taskEnd; ++idx) {
+                    (void)idx; // suppress unused warning
+                    int moves = 0;
+                    double score = playOneGame(w, maxMoves, &moves);
+
+                    localTotal += score;
+                    if (score > localBestScore) {
+                        localBestScore = score;
+                        localBestMoves = moves;
+                    }
+                }
+
+                std::scoped_lock lock(aggMutex);
+                total += localTotal;
+                if (localBestScore > outBestScore) {
+                    outBestScore = localBestScore;
+                    outBestMoves = localBestMoves;
+                }
+            }
+        ));
     }
 
-    return total / games;
+    for (auto& f : futures) {
+        f.get();
+    }
+
+    return (games > 0) ? (total / games) : 0.0;
 }
 
 static double rnd(double a, double b) {
@@ -288,19 +333,93 @@ Population evolve(const Population& pop, double eliteRate, double mutationRate)
     return newPop;
 }
 
-void evaluatePopulation(Population& pop)
+void evaluatePopulation(Population& pop, int games, int maxMoves, int threadCount)
 {
     for (auto& ind : pop) {
         double bestScore = 0.0;
         int    bestMoves = 0;
 
         ind.fitness = evaluateFitness(ind.w,
-                                      10,
-                                      1000,
+                                      games,
+                                      maxMoves,
                                       bestScore,
-                                      bestMoves);
+                                      bestMoves,
+                                      threadCount);
 
         ind.bestScore = bestScore;
         ind.bestMoves = bestMoves;
     }
+}
+
+static void writeIndividual(std::ostream& os, const Individual& ind)
+{
+    os << ind.w.wEmpty << ' '
+       << ind.w.wMonotonic << ' '
+       << ind.w.wSmooth << ' '
+       << ind.w.wCornerMax << ' '
+       << ind.w.wMerge << ' '
+       << ind.fitness << ' '
+       << ind.bestScore << ' '
+       << ind.bestMoves << '\n';
+}
+
+bool savePopulation(const Population& pop, int generation, const std::string& filePath)
+{
+    std::ofstream ofs(filePath, std::ios::out | std::ios::trunc);
+    if (!ofs.is_open()) return false;
+
+    ofs << generation << '\n';
+    ofs << pop.size() << '\n';
+    for (const auto& ind : pop) {
+        writeIndividual(ofs, ind);
+    }
+    return true;
+}
+
+static bool readIndividual(std::istream& is, Individual& ind)
+{
+    return (is >> ind.w.wEmpty
+               >> ind.w.wMonotonic
+               >> ind.w.wSmooth
+               >> ind.w.wCornerMax
+               >> ind.w.wMerge
+               >> ind.fitness
+               >> ind.bestScore
+               >> ind.bestMoves);
+}
+
+Population loadPopulation(const std::string& filePath, int expectedSize, int& outGeneration)
+{
+    std::ifstream ifs(filePath);
+    if (!ifs.is_open()) {
+        outGeneration = 0;
+        return createInitialPopulation(expectedSize);
+    }
+
+    int generation = 0;
+    int size = 0;
+    if (!(ifs >> generation)) {
+        outGeneration = 0;
+        return createInitialPopulation(expectedSize);
+    }
+    if (!(ifs >> size) || size <= 0) {
+        outGeneration = generation;
+        return createInitialPopulation(expectedSize);
+    }
+
+    Population pop;
+    pop.reserve(size);
+    for (int i = 0; i < size; ++i) {
+        Individual ind;
+        if (!readIndividual(ifs, ind)) break;
+        pop.push_back(ind);
+    }
+
+    if ((int)pop.size() != size) {
+        outGeneration = generation;
+        return createInitialPopulation(expectedSize);
+    }
+
+    outGeneration = generation;
+    return pop;
 }
