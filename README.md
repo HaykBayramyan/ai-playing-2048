@@ -47,3 +47,4 @@ qmake6 game-2048.pro
 make -j$(nproc)
 ./game-2048
 ```
+# ai-playing-2048
