@@ -41,6 +41,8 @@ private:
     static constexpr int Rows  = 5;
     static constexpr int Cols  = 8;
 
+    static constexpr const char* SaveFileName = "population_state.txt";
+
     std::vector<Agent> m_agents;
 
     QTimer*            m_stepTimer      = nullptr;
