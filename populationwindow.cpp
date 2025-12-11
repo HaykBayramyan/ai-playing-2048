@@ -15,10 +15,14 @@ PopulationWindow::PopulationWindow(QWidget* parent)
     , m_population(createInitialPopulation(Count))
     , m_generation(0)
 {
+    int loadedGeneration = 0;
+    m_population = loadPopulation(SaveFileName, Count, loadedGeneration);
+    m_generation = loadedGeneration;
+
     setWindowTitle("GA Population Visualization");
     m_generationLabel = new QLabel(this);
     m_generationLabel->setAlignment(Qt::AlignCenter);
-    m_generationLabel->setText("Generation: 0");
+    m_generationLabel->setText(QString("Generation: %1").arg(m_generation));
 
     // Сетка агентов
     auto* grid = new QGridLayout();
@@ -211,4 +215,6 @@ void PopulationWindow::nextGeneration()
     m_population = evolve(m_population, 0.1, 0.1);
     ++m_generation;
     setPopulation(m_population, m_generation);
+
+    savePopulation(m_population, m_generation, SaveFileName);
 }
