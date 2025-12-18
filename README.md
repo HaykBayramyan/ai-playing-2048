@@ -88,17 +88,19 @@ This mode demonstrates:
 ### Terminal (qmake)
 
 #### Qt 5
+```bash
 sudo apt install qtbase5-dev qt5-qmake qtbase5-dev-tools -y
 qmake game-2048.pro
 make -j$(nproc)
 ./game-2048
-
+```
 #### Qt 6
+```bash
 sudo apt install qt6-base-dev qt6-tools-dev-tools -y
 qmake6 game-2048.pro
 make -j$(nproc)
 ./game-2048
-
+```
 ---
 
 ## Purpose
