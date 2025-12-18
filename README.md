@@ -56,7 +56,6 @@ This mode demonstrates:
 ---
 
 ## Project Layout
-.
 ├── Game2048.h / Game2048.cpp
 
 ├── BoardWidget.h / BoardWidget.cpp
