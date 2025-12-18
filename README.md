@@ -58,13 +58,21 @@ This mode demonstrates:
 ## Project Layout
 .
 ├── Game2048.h / Game2048.cpp
+
 ├── BoardWidget.h / BoardWidget.cpp
+
 ├── MainWindow.h / MainWindow.cpp
+
 ├── PopulationWindow.h / PopulationWindow.cpp
+
 ├── ai2048.h / ai2048.cpp
+
 ├── main.cpp
+
 ├── game-2048.pro
+
 └── .gitignore
+
 
 ---
 
